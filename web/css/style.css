@@ -22,6 +22,7 @@ h3 { font-size: 16px; } h4 { font-size: 14px; }
 .nav-item.on { background: #1e2a52; color: #fff; font-weight: 700; }
 .side-foot { margin-top: auto; font-size: 11px; color: var(--muted); padding-top: 16px; }
 .main { flex: 1; padding: 26px 30px; max-width: 1080px; }
+.main.wide { max-width: 1560px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
 .row-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
 .row-title { font-weight: 700; font-size: 16px; }
@@ -52,6 +53,11 @@ h3 { font-size: 16px; } h4 { font-size: 14px; }
 .crumb { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
 .agent-card { border: 1px solid var(--line); border-left: 4px solid var(--ac, #666); border-radius: 10px; padding: 14px; margin-bottom: 14px; background: #0e1425; }
+/* 五 Agent 并排：宽屏 5 列一屏，窄屏横向滚动保持并排 */
+.agent-grid { display: grid; grid-template-columns: repeat(5, minmax(250px, 1fr)); gap: 12px; overflow-x: auto; align-items: start; padding-bottom: 6px; }
+.agent-grid .agent-card { margin-bottom: 0; min-width: 0; }
+.agent-grid .agent-head { flex-wrap: wrap; }
+.agent-grid .qtext { max-height: 150px; }
 .agent-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ac, #666); display: inline-block; }
 .qbox { margin-bottom: 10px; }
