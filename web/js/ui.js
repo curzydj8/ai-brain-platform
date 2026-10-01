@@ -8,7 +8,7 @@ const { esc, fmtTime, copyText, download } = NS.Core;
 const app = document.getElementById("app");
 
 /* ---------------- 布局 ---------------- */
-function layout(active, content) {
+function layout(active, content, wide) {
   const nav = [
     ["dashboard", "控制台", "#/dashboard"],
     ["debates", "议题", "#/debates"],
@@ -23,7 +23,7 @@ function layout(active, content) {
       <nav>${nav.map(([k, t, h]) => `<a href="${h}" class="nav-item${active === k ? " on" : ""}">${t}</a>`).join("")}</nav>
       <div class="side-foot">零 API Key 起步 · 数据只存本机</div>
     </aside>
-    <main class="main">${content}</main>
+    <main class="main${wide ? " wide" : ""}">${content}</main>
   </div>`;
 }
 function toast(msg) {
@@ -122,7 +122,7 @@ function vDebate(id) {
       ${!canAnalyze && last && !last.analysis ? `<span class="muted">把本轮 ${d.agentIds.length} 个 Agent 的回答粘贴完，即可运行差异分析。</span>` : ""}
     </div>
     ${roundsHtml}${reportHtml}
-  `);
+  `, true);
 }
 function roundHtml(d, r) {
   const agentCards = d.agentIds.map(aid => {
@@ -136,7 +136,7 @@ function roundHtml(d, r) {
       </div>
       <div class="qbox"><div class="qbox-title">提问（复制到 ${esc(a.name)} 网页） <button class="btn xs" data-action="copy" data-q="q-${r.n}-${aid}">复制</button></div>
         <pre id="q-${r.n}-${aid}" class="qtext">${esc(r.questions[aid] || "")}</pre></div>
-      <textarea class="answer" data-debate="${d.id}" data-round="${r.n}" data-agent="${aid}" rows="5" placeholder="把 ${esc(a.name)} 的回答粘贴到这里…">${esc(ans)}</textarea>
+      <textarea class="answer" data-debate="${d.id}" data-round="${r.n}" data-agent="${aid}" rows="7" placeholder="把 ${esc(a.name)} 的回答粘贴到这里…">${esc(ans)}</textarea>
       <div class="agent-foot"><span class="muted">${ans.trim() ? "✓ 已填写" : "待填写"}</span>
         <button class="btn xs" data-action="save-answer" data-debate="${d.id}" data-round="${r.n}" data-agent="${aid}">保存回答</button></div>
     </div>`;
@@ -154,7 +154,7 @@ function roundHtml(d, r) {
       ${an.unique.slice(0, 10).map(u => `<div class="pt unique"><span class="badge" style="background:${(NS.Agents.getAgent(u.points[0].agentId) || {}).color || "#666"}">${esc(u.points[0].agentName)}</span> ${esc(u.rep)}</div>`).join("") || `<div class="muted">暂无</div>`}
     </div>`;
   }
-  return `<div class="card"><h2>第 ${r.n} 轮</h2>${agentCards}${analysisHtml}</div>`;
+  return `<div class="card"><h2>第 ${r.n} 轮 <span class="muted">· ${d.agentIds.length} 个 Agent 并排</span></h2><div class="agent-grid">${agentCards}</div>${analysisHtml}</div>`;
 }
 
 /* ---------------- Agent 中心 ---------------- */
@@ -238,7 +238,10 @@ function render() {
   let html;
   if (path === "dashboard") html = vDashboard();
   else if (path === "debates") html = vDebates(qs.get("action") === "new");
-  else if (path === "debate") html = vDebate(qs.get("id") || (h.split("/")[2] || "").split("?")[0]);
+  else if (path === "debate" || path.indexOf("debate/") === 0) {
+    const id = qs.get("id") || (path.split("/")[1] || "");
+    html = vDebate(id);
+  }
   else if (path === "agents") html = vAgents(qs.get("edit"));
   else if (path === "knowledge") html = vKnowledge(qs.get("q"));
   else if (path === "settings") html = vSettings();
