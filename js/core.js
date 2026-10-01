@@ -31,6 +31,13 @@ function download(filename, text, mime) {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+/* 外链清洗：只允许 http(s)，其余一律补 https，防 javascript: 伪协议 */
+function safeUrl(u) {
+  u = String(u || "").trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  if (u) return "https://" + u;
+  return "#";
+}
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -79,7 +86,7 @@ const Store = {
   },
 };
 
-NS.Core = { uid, esc, nowISO, fmtTime, download, copyText, Store, LS_KEY };
+NS.Core = { uid, esc, nowISO, fmtTime, download, copyText, safeUrl, Store, LS_KEY };
 
 if (typeof module !== "undefined") module.exports = NS.Core;
 })();
