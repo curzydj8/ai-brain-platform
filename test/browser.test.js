@@ -12,15 +12,16 @@ function fakeEl() {
     addEventListener() {}, querySelector() { return null; },
   };
 }
+const appEl = fakeEl();
 const sandbox = {
   window: {},
   console,
-  location: { hash: "#/dashboard" },
+  location: { hash: "#/debate/x" },
   navigator: {},
   setTimeout: (fn) => 0, clearTimeout: () => {},
   document: {
     readyState: "complete",
-    getElementById: () => fakeEl(),
+    getElementById: (id) => id === "app" ? appEl : fakeEl(),
     createElement: () => fakeEl(),
     addEventListener() {},
     body: fakeEl(),
@@ -52,7 +53,7 @@ let fail = 0;
 for (const [name, v] of checks) {
   if (v) console.log(name, "exported"); else { console.log(name, "MISSING"); fail++; }
 }
-// 在沙盒里走一遍真实流程（无 localStorage → 走内存态）
+// 在沙盒里走一遍真实流程（无 localStorage → 走内存态），并验证五并排网格渲染
 const src = `
 (() => {
   const AIBrain = window.AIBrain;
@@ -60,11 +61,18 @@ const src = `
   for (const aid of d.agentIds) d.rounds[0].answers[aid] = "核心判断：同意微服务架构。关键论据：扩展性好。风险提示：成本。行动建议：试点。";
   d.rounds[0].analysis = AIBrain.Debate.analyzeRound(d, d.rounds[0]);
   d.report = AIBrain.Debate.buildReport(d);
-  return "rounds=" + d.rounds.length + " common=" + d.rounds[0].analysis.common.length + " reportLen=" + d.report.length;
+  location.hash = "#/debate/" + d.id;
+  AIBrain.UI.render();
+  const html = document.getElementById("app").innerHTML;
+  const cards = (html.match(/class="agent-card"/g) || []).length;
+  return "rounds=" + d.rounds.length + " common=" + d.rounds[0].analysis.common.length +
+    " reportLen=" + d.report.length + " grid=" + html.includes("agent-grid") + " cards=" + cards;
 })()
 `;
 try {
-  console.log("sandbox flow:", vm.runInContext(src, sandbox));
+  const out = vm.runInContext(src, sandbox);
+  console.log("sandbox flow:", out);
+  if (!/grid=true cards=5/.test(out)) { console.error("并排网格渲染断言失败"); fail++; }
 } catch (e) { console.error("sandbox flow FAIL:", e.message); fail++; }
 console.log(fail ? "BROWSER TEST FAILED" : "BROWSER TEST OK");
 process.exit(fail ? 1 : 0);
