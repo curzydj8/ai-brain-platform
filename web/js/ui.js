@@ -105,9 +105,11 @@ function vDebate(id) {
   const canAnalyze = last && !last.analysis && NS.Debate.roundComplete(d, last);
   const maxRounds = NS.Core.Store.load().settings.maxRounds || 5;
   const canNext = last && last.analysis && d.rounds.length < maxRounds && d.status !== "done";
+  const filled = last ? d.agentIds.filter(aid => (last.answers[aid] || "").trim()).length : 0;
   const reportHtml = d.report ? `
     <div class="card"><div class="sec-head"><h2>共识报告</h2>
       <div><button class="btn" data-action="copy" data-copy="${esc(d.report).replace(/"/g, "&quot;")}">复制</button>
+      <button class="btn" data-action="download-report" data-id="${d.id}">下载 Markdown</button>
       <button class="btn" data-action="save-report-kb" data-id="${d.id}">存入知识库</button></div></div>
       <div class="report">${md(d.report)}</div></div>` : "";
   return layout("debates", `
@@ -117,9 +119,10 @@ function vDebate(id) {
     ${d.constraints ? `<p class="muted">约束：${esc(d.constraints)}</p>` : ""}
     <div class="toolbar">
       ${canAnalyze ? `<button class="btn primary" data-action="analyze" data-id="${d.id}">运行差异分析</button>` : ""}
+      ${last && last.analysis ? `<button class="btn" data-action="analyze" data-id="${d.id}">重新运行差异分析</button>` : ""}
       ${canNext ? `<button class="btn" data-action="next-round" data-id="${d.id}">生成下一轮追问（${d.rounds.length + 1}/${maxRounds}）</button>` : ""}
       ${!d.report && last && last.analysis ? `<button class="btn primary" data-action="report" data-id="${d.id}">生成共识报告</button>` : ""}
-      ${!canAnalyze && last && !last.analysis ? `<span class="muted">把本轮 ${d.agentIds.length} 个 Agent 的回答粘贴完，即可运行差异分析。</span>` : ""}
+      ${last && !last.analysis ? `<span class="muted">本轮已填写 ${filled}/${d.agentIds.length}，填完即可运行差异分析（粘贴后自动保存）。</span>` : ""}
     </div>
     ${roundsHtml}${reportHtml}
   `, true);
@@ -132,7 +135,7 @@ function roundHtml(d, r) {
     return `
     <div class="agent-card" style="--ac:${a.color}">
       <div class="agent-head"><span class="dot"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.role)}</span>
-        <a class="btn xs" href="${a.url}" target="_blank" rel="noopener">去 ${esc(a.name)} 网页提问 ↗</a>
+        <a class="btn xs" href="${esc(NS.Core.safeUrl(a.url))}" target="_blank" rel="noopener">去 ${esc(a.name)} 网页提问 ↗</a>
       </div>
       <div class="qbox"><div class="qbox-title">提问（复制到 ${esc(a.name)} 网页） <button class="btn xs" data-action="copy" data-q="q-${r.n}-${aid}">复制</button></div>
         <pre id="q-${r.n}-${aid}" class="qtext">${esc(r.questions[aid] || "")}</pre></div>
@@ -165,7 +168,7 @@ function vAgents(editId) {
       <div><span class="dot"></span><b>${esc(a.name)}</b> <span class="muted">${esc(a.role)}</span>
         <span class="badge ${a.enabled ? "on" : ""}">${a.enabled ? "启用" : "停用"}</span></div>
       <div class="muted">专长：${esc(a.strengths.join("、"))}</div>
-      <div class="muted"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.url)}</a></div>
+      <div class="muted"><a href="${esc(NS.Core.safeUrl(a.url))}" target="_blank" rel="noopener">${esc(a.url)}</a></div>
       <div class="row-ops"><a href="#/agents?edit=${a.id}">编辑</a> · <a href="#" data-action="toggle-agent" data-id="${a.id}">${a.enabled ? "停用" : "启用"}</a></div>
     </div>`).join("");
   let editForm = "";
@@ -300,6 +303,12 @@ function bindEvents() {
       NS.Debate.saveKnowledge({ title: "共识报告：" + d.topic, kind: "report", body: d.report, debateId: d.id });
       toast("已存入知识库");
     }
+    else if (act === "download-report") {
+      const d = NS.Debate.getDebate(el.dataset.id);
+      const safe = d.topic.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
+      download("共识报告-" + safe + ".md", d.report, "text/markdown;charset=utf-8");
+      toast("已下载");
+    }
     else if (act === "del-debate") {
       e.preventDefault();
       if (confirm("确定删除这个议题吗？")) { NS.Debate.deleteDebate(el.dataset.id); render(); }
@@ -334,6 +343,10 @@ function bindEvents() {
     const f = e.target;
     if (f.id === "new-debate") {
       e.preventDefault();
+      if (NS.Agents.enabledAgents().length < 2) {
+        toast("至少启用 2 个 Agent 才能发起议题，请去 Agent 中心启用");
+        return;
+      }
       const fd = new FormData(f);
       const d = NS.Debate.createDebate({
         topic: fd.get("topic"), background: fd.get("background"), constraints: fd.get("constraints"),
@@ -380,6 +393,28 @@ function bindEvents() {
   });
 
   window.addEventListener("hashchange", render);
+
+  /* 回答框自动保存（防抖）：粘贴后不用点保存也不会丢 */
+  let autoT = null;
+  document.addEventListener("input", e => {
+    const ta = e.target && e.target.closest ? e.target.closest("textarea.answer") : null;
+    if (!ta) return;
+    clearTimeout(autoT);
+    autoT = setTimeout(() => {
+      const d = NS.Debate.getDebate(ta.dataset.debate);
+      if (!d) return;
+      const r = d.rounds.find(x => x.n === +ta.dataset.round);
+      if (!r) return;
+      const hadAnalyzeBtn = !!document.querySelector('[data-action="analyze"]');
+      r.answers[ta.dataset.agent] = ta.value;
+      NS.Debate.saveDebate(d);
+      const card = ta.closest(".agent-card");
+      const label = card && card.querySelector(".agent-foot .muted");
+      if (label) label.textContent = ta.value.trim() ? "✓ 已填写（已自动保存）" : "待填写";
+      const isLast = d.rounds[d.rounds.length - 1].n === r.n;
+      if (isLast && !r.analysis && !hadAnalyzeBtn && NS.Debate.roundComplete(d, r)) render();
+    }, 600);
+  });
 }
 
 NS.UI = { render, bindEvents, toast, md };
