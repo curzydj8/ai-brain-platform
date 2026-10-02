@@ -91,5 +91,11 @@ const d2 = Debate.createDebate({ topic: "测试停用", background: "", constrai
 eq(d2.agentIds.length, 4, "新议题只含启用的 Agent");
 a.enabled = true; Agents.upsertAgent(a);
 
+// 11. safeUrl
+eq(Core.safeUrl("chatgpt.com"), "https://chatgpt.com", "裸域名补 https");
+eq(Core.safeUrl("https://x.com"), "https://x.com", "https 保持");
+eq(Core.safeUrl("javascript:alert(1)"), "https://javascript:alert(1)", "伪协议被中和");
+eq(Core.safeUrl(""), "#", "空串回 #");
+
 console.log(`debate engine: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
